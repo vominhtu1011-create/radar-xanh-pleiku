@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1714">
+<meta name="description" content="Radar hỗ trợ tài xế khảo sát khu vực tiềm năng tại Pleiku.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Radar Xanh Pleiku</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{color-scheme:dark;--bg:#09120f;--panel:#11221b;--panel2:#172d23;--line:#294536;--green:#65e6a2;--muted:#a5b9ad;--orange:#ffc45c;--red:#ff7777}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#eef8f1;font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:16px 16px 10px;background:linear-gradient(135deg,#10281d,#0b1714);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:500}
+.brand{display:flex;justify-content:space-between;align-items:center}.brand strong{font-size:20px;letter-spacing:.5px}.tag{font-size:11px;color:var(--green);border:1px solid #397454;padding:5px 8px;border-radius:20px}
+.sub{font-size:12px;color:var(--muted);margin-top:3px}
+main{padding:12px;max-width:850px;margin:auto}.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:12px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px}
+select,input,button,textarea{font:inherit;color:#f4fff7;background:#0b1912;border:1px solid var(--line);border-radius:10px;padding:10px;width:100%;min-height:42px}
+button{background:#1d5a3a;border-color:#31784f;font-weight:650;cursor:pointer}button.secondary{background:#172b22;border-color:var(--line)}button:disabled{opacity:.55}
+#map{height:47vh;min-height:300px;border-radius:13px;overflow:hidden;background:#17251e}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:var(--panel2);padding:10px;border-radius:11px}.stat b{display:block;font-size:20px;color:var(--green)}.stat span{font-size:11px;color:var(--muted)}
+.row{display:flex;gap:8px}.row>*{flex:1}.small{font-size:12px;color:var(--muted);line-height:1.45}
+h2{font-size:16px;margin:0 0 10px}.tabs{display:flex;gap:7px;margin-bottom:10px}.tabs button{font-size:12px;padding:8px}.tabs button.active{background:#286b46}
+#logList{max-height:220px;overflow:auto}.entry{padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}.entry:last-child{border:0}
+.zone{display:flex;gap:9px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.zone:last-child{border:0}.zone-info{flex:1;min-width:0}.zone-info b{display:block;font-size:13px}.zone-info small{color:var(--muted);font-size:11px;line-height:1.45}.score{font-size:19px;font-weight:800;min-width:42px;text-align:center}.zone-actions{display:flex;gap:5px}.zone-actions button{width:auto;min-height:34px;padding:6px 9px;font-size:11px}.heat-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin:8px 0}.heat-swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px}
+footer{color:var(--muted);font-size:11px;text-align:center;padding:8px 18px 25px}
+.notice{padding:10px;border-radius:10px;background:#392f18;color:#ffe1a1;font-size:12px;line-height:1.45}
+@media(min-width:700px){#map{height:500px}.controls{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header><div class="brand"><strong>◉ RADAR XANH</strong><span class="tag">PLEIKU • BẢN 2.0</span></div><div class="sub">Công cụ khảo sát khu vực tiềm năng cho tài xế</div></header>
+<main>
+<section class="panel">
+ <div class="controls">
+  <div><label>Bán kính radar</label><select id="radius"><option value="1000">1 km</option><option value="2000" selected>2 km</option><option value="3000">3 km</option><option value="5000">5 km</option></select></div>
+  <div><label>Phạm vi</label><select id="scope"><option value="all" selected>Toàn khu vực</option><option value="shift">Ưu tiên vùng phân ca (đánh dấu thủ công)</option></select></div>
+  <div><label>Chế độ</label><select id="scanMode"><option value="manual" selected>Quét thủ công</option><option value="auto">Cập nhật vị trí tự động</option></select></div>
+  <div><label>Giao diện</label><select id="theme"><option value="green" selected>Xanh neon</option><option value="blue">Xanh dương</option><option value="orange">Cam đen</option></select></div>
+ </div>
+ <div class="row" style="margin-top:10px"><button id="locate">◎ Định vị tôi</button><button id="scan" class="secondary">⌁ Quét địa điểm</button></div>
+</section>
+<section class="panel">
+ <div id="map"></div>
+ <div class="legend"><span><i class="dot" style="background:#ff6b62"></i>Điểm dịch vụ/ăn uống</span><span><i class="dot" style="background:#70baff"></i>Điểm giao thông</span><span><i class="dot" style="background:#65e6a2"></i>Vị trí của bạn</span></div>
+</section>
+<section class="panel">
+ <h2>Vùng tiềm năng trong bán kính quét</h2>
+ <div class="small">Lưới 250 m. Điểm số là chỉ số khảo sát tương đối từ địa điểm công khai và nhật ký cuốc của mày, không phải xác suất có khách.</div>
+ <div class="heat-legend"><span><i class="heat-swatch" style="background:#ff625e"></i>Cao</span><span><i class="heat-swatch" style="background:#ffc45c"></i>Trung bình</span><span><i class="heat-swatch" style="background:#65c98b"></i>Thấp</span></div>
+ <div class="row"><button id="heatToggle" class="secondary">Ẩn bản đồ nhiệt</button><button id="rescore" class="secondary">Tính lại điểm</button></div>
+ <div id="topZones" class="small" style="margin-top:8px">Hãy định vị và quét địa điểm để phân tích.</div>
+</section>
+<section class="panel">
+ <h2>Tổng quan khu vực</h2>
+ <div class="stats"><div class="stat"><b id="poiCount">0</b><span>Địa điểm tìm thấy</span></div><div class="stat"><b id="tripCount">0</b><span>Cuốc đã ghi</span></div><div class="stat"><b id="waitAvg">--</b><span>Chờ TB (phút)</span></div></div>
+ <p class="small" id="status" aria-live="polite">Đang chờ GPS. Hãy cấp quyền vị trí để bắt đầu.</p>
+ <div class="notice">Chỉ số vùng là ước tính tương đối từ địa điểm công khai và nhật ký cuốc mày tự ghi. Đây KHÔNG phải dữ liệu khách đang mở app hoặc đang đặt Xanh SM.</div>
+</section>
+<section class="panel">
+ <h2>Ghi nhận cuốc / thời gian chờ</h2>
+ <div class="controls">
+  <div><label>Khu vực / điểm đứng</label><input id="place" placeholder="VD: Chợ Pleiku"></div>
+  <div><label>Khung giờ (tự điền)</label><input id="time" readonly></div>
+  <div><label>Số cuốc nhận được</label><input id="trips" type="number" min="0" value="1"></div>
+  <div><label>Thời gian chờ (phút)</label><input id="wait" type="number" min="0" value="15"></div>
+ </div>
+ <button id="saveLog" style="margin-top:9px">＋ Lưu nhật ký</button>
+ <div class="small" style="margin-top:8px">Nhật ký được lưu trên trình duyệt của điện thoại. Không tự gửi về máy chủ.</div>
+</section>
+<section class="panel">
+ <div class="row" style="align-items:center"><h2 style="flex:2">Nhật ký gần đây</h2><button id="export" class="secondary">Xuất CSV</button></div>
+ <div id="logList" class="small">Chưa có dữ liệu.</div>
+ <button id="clear" class="secondary" style="margin-top:8px">Xóa toàn bộ nhật ký</button>
+</section>
+</main>
+<footer>Radar Xanh Pleiku • Bản thử nghiệm độc lập, không liên kết với Xanh SM.</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const center=[13.9833,108.0000]; // Tâm mặc định gần trung tâm Pleiku, chỉ dùng trước khi có GPS
+let map, me=null, meMarker=null, radiusCircle=null, poiLayer=L.layerGroup(), heatLayer=L.layerGroup(), selectedMarker=null, watchId=null, pois=[], zones=[];
+let heatVisible=true;
+const KEY='radar_xanh_logs_v1', CELL_SIZE=250;
+function logs(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []}}
+function setStatus(t){$('status').textContent=t}
+function initMap(){
+ map=L.map('map').setView(center,14);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+ poiLayer.addTo(map);heatLayer.addTo(map);
+ L.circle(center,{radius:2000,color:'#65e6a2',weight:1,fillColor:'#65e6a2',fillOpacity:.035,dashArray:'5 7'}).addTo(map);
+}
+function updateCircle(){
+ if(!me)return;
+ const r=Number($('radius').value);
+ if(radiusCircle)map.removeLayer(radiusCircle);
+ radiusCircle=L.circle(me,{radius:r,color:'#65e6a2',weight:2,fillColor:'#65e6a2',fillOpacity:.035,dashArray:'6 6'}).addTo(map);
+ if(meMarker)meMarker.setLatLng(me);else meMarker=L.circleMarker(me,{radius:8,color:'#fff',weight:2,fillColor:'#65e6a2',fillOpacity:1}).addTo(map).bindPopup('Vị trí của bạn');
+ map.setView(me,14);
+}
+function locate(){
+ if(!navigator.geolocation){setStatus('Trình duyệt không hỗ trợ GPS.');return}
+ setStatus('Đang xin quyền và lấy vị trí GPS…');
+ navigator.geolocation.getCurrentPosition(pos=>{
+  me=[pos.coords.latitude,pos.coords.longitude];updateCircle();
+  setStatus('Đã định vị. Sai số GPS khoảng '+Math.round(pos.coords.accuracy)+' m. Nhấn “Quét địa điểm”.');
+  if($('scanMode').value==='auto'&&watchId===null) watchId=navigator.geolocation.watchPosition(p=>{me=[p.coords.latitude,p.coords.longitude];updateCircle()},()=>{}, {enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+ },err=>setStatus('Không lấy được GPS: '+err.message+'. Kiểm tra quyền vị trí và HTTPS.'),{enableHighAccuracy:true,timeout:15000,maximumAge:10000});
+}
+function distance(a,b){const R=6371000,rad=x=>x*Math.PI/180,dLat=rad(b[0]-a[0]),dLon=rad(b[1]-a[1]);const x=Math.sin(dLat/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function poiWeight(tags={}){
+ const amenity=tags.amenity||'',shop=tags.shop||'',tourism=tags.tourism||'',pt=tags.public_transport||'',rail=tags.railway||'',leisure=tags.leisure||'';
+ if(['restaurant','cafe','fast_food','bar','food_court','ice_cream','pub'].includes(amenity))return {weight:8,group:'Ăn uống'};
+ if(['hotel','motel','guest_house','hostel','apartment'].includes(tourism))return {weight:7,group:'Lưu trú'};
+ if(['bus_station','taxi','station'].includes(amenity)||['platform','station'].includes(pt)||['station','tram_stop'].includes(rail))return {weight:8,group:'Giao thông'};
+ if(['hospital','clinic','doctors','pharmacy','dentist'].includes(amenity))return {weight:6,group:'Y tế'};
+ if(['school','university','college','kindergarten'].includes(amenity))return {weight:4,group:'Giáo dục'};
+ if(shop)return {weight:['supermarket','mall','department_store','convenience'].includes(shop)?6:4.5,group:'Mua sắm'};
+ if(['marketplace'].includes(amenity))return {weight:7,group:'Chợ'};
+ if(['park','playground','sports_centre','fitness_centre'].includes(leisure))return {weight:3,group:'Giải trí'};
+ if(amenity||tourism||pt||rail)return {weight:3,group:'Tiện ích'};
+ return {weight:2,group:'Khác'};
+}
+function cellFor(point){
+ const latScale=111320,lonScale=111320*Math.cos(me[0]*Math.PI/180);
+ const x=(point[1]-me[1])*lonScale,y=(point[0]-me[0])*latScale;
+ const ix=Math.floor(x/CELL_SIZE),iy=Math.floor(y/CELL_SIZE);
+ const cx=(ix+.5)*CELL_SIZE,cy=(iy+.5)*CELL_SIZE;
+ return {key:ix+':'+iy,ix,iy,center:[me[0]+cy/latScale,me[1]+cx/lonScale]};
+}
+function scoreColor(score){return score>=70?'#ff625e':score>=40?'#ffc45c':'#65c98b'}
+function analyzeZones(){
+ if(!me)return;
+ const r=Number($('radius').value),cells=new Map();
+ const getCell=(xy)=>{const c=cellFor(xy);if(!cells.has(c.key))cells.set(c.key,{...c,poiScore:0,poiCount:0,groups:{},trips:0,waitTotal:0,waitCount:0,historyScore:0});return cells.get(c.key)};
+ for(const p of pois){const xy=p.lat?[p.lat,p.lon]:p.center?[p.center.lat,p.center.lon]:null;if(!xy||distance(me,xy)>r)continue;const c=getCell(xy),w=poiWeight(p.tags||{});c.poiScore+=w.weight;c.poiCount++;c.groups[w.group]=(c.groups[w.group]||0)+1;}
+ const a=logs();
+ for(const log of a){if(!Number.isFinite(Number(log.lat))||!Number.isFinite(Number(log.lon)))continue;const xy=[Number(log.lat),Number(log.lon)];if(distance(me,xy)>r)continue;const c=getCell(xy);c.trips+=Math.max(0,Number(log.trips)||0);const wait=Math.max(0,Number(log.wait)||0);c.waitTotal+=wait;c.waitCount++;}
+ for(const c of cells.values())c.historyScore=c.trips*4+(c.waitCount?Math.max(0,30-c.waitTotal/c.waitCount)*.5:0);
+ const maxPoi=Math.max(1,...[...cells.values()].map(c=>c.poiScore)),maxHist=Math.max(1,...[...cells.values()].map(c=>c.historyScore));
+ const hasHistory=[...cells.values()].some(c=>c.waitCount>0||c.trips>0);
+ zones=[...cells.values()].map(c=>{
+  const p=c.poiScore/maxPoi*100,h=c.historyScore/maxHist*100;
+  c.score=Math.round(hasHistory?p*.65+h*.35:p);
+  c.waitAvg=c.waitCount?Math.round(c.waitTotal/c.waitCount):null;
+  c.distance=Math.round(distance(me,c.center));
+  c.reason=[c.poiCount?c.poiCount+' địa điểm công khai':'chưa có POI',c.trips?c.trips+' cuốc đã ghi':null,c.waitAvg!==null?'chờ TB '+c.waitAvg+' phút':null].filter(Boolean).join(' • ');
+  return c;
+ }).filter(c=>c.distance<=r+CELL_SIZE*.7&& (c.poiCount||c.waitCount));
+ zones.sort((a,b)=>b.score-a.score||b.trips-a.trips||a.distance-b.distance);
+ heatLayer.clearLayers();
+ zones.forEach(c=>{
+  const lat1=me[0]+c.iy*CELL_SIZE/111320,lat2=lat1+CELL_SIZE/111320;
+  const lon1=me[1]+c.ix*CELL_SIZE/(111320*Math.cos(me[0]*Math.PI/180)),lon2=lon1+CELL_SIZE/(111320*Math.cos(me[0]*Math.PI/180));
+  const color=scoreColor(c.score);
+  L.rectangle([[lat1,lon1],[lat2,lon2]],{color,weight:1,opacity:.55,fillColor:color,fillOpacity:.12+(c.score/100)*.38}).bindPopup(`<b>Chỉ số khảo sát: ${c.score}/100</b><br>${escapeHtml(c.reason)}<br>Cách bạn khoảng ${(c.distance/1000).toFixed(2)} km`).addTo(heatLayer);
+ });
+ renderZones();
+}
+function renderZones(){
+ const el=$('topZones');
+ if(!zones.length){el.textContent='Chưa có đủ dữ liệu để xếp hạng. Hãy quét địa điểm hoặc ghi nhật ký cuốc có GPS.';return;}
+ el.innerHTML=zones.slice(0,8).map((c,i)=>`<div class="zone"><div class="score" style="color:${scoreColor(c.score)}">${c.score}</div><div class="zone-info"><b>Vùng ${i+1} • cách ${(c.distance/1000).toFixed(2)} km</b><small>${escapeHtml(c.reason)}</small></div><div class="zone-actions"><button class="secondary" data-select="${c.key}">Chọn</button><button data-go="${c.key}">Đi</button></div></div>`).join('');
+}
+function chooseZone(key,navigate=false){
+ const c=zones.find(z=>z.key===key);if(!c)return;
+ if(selectedMarker)map.removeLayer(selectedMarker);
+ selectedMarker=L.marker(c.center).addTo(map).bindPopup(`<b>Vùng khảo sát • ${c.score}/100</b><br>${escapeHtml(c.reason)}`).openPopup();
+ map.setView(c.center,16);
+ if(navigate)window.open('https://www.google.com/maps/dir/?api=1&destination='+c.center[0]+','+c.center[1]+'&travelmode=driving','_blank','noopener');
+}
+$('topZones').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.select)chooseZone(b.dataset.select,false);if(b.dataset.go)chooseZone(b.dataset.go,true)});
+async function scan(){
+ if(!me){setStatus('Cần định vị trước khi quét.');return}
+ const r=Number($('radius').value),lat=me[0],lon=me[1];
+ const q=`[out:json][timeout:30];(nwr(around:${r},${lat},${lon})[amenity];nwr(around:${r},${lat},${lon})[shop];nwr(around:${r},${lat},${lon})[tourism];nwr(around:${r},${lat},${lon})[public_transport];nwr(around:${r},${lat},${lon})[railway];nwr(around:${r},${lat},${lon})[leisure];nwr(around:${r},${lat},${lon})[office];);out center 120;`;
+ $('scan').disabled=true;setStatus('Đang lấy dữ liệu địa điểm công khai trong bán kính '+(r/1000)+' km…');
+ const endpoints=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+ try{
+  let data=null,lastError=null;
+  for(const endpoint of endpoints){
+   try{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),38000);const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:q,signal:controller.signal});clearTimeout(timer);if(!res.ok)throw new Error('Máy chủ bản đồ phản hồi '+res.status);data=await res.json();break;}catch(err){lastError=err;}
+  }
+  if(!data)throw lastError||new Error('Không kết nối được nguồn bản đồ.');
+  pois=data.elements||[];poiLayer.clearLayers();let count=0;
+  for(const p of pois){
+   const xy=p.lat?[p.lat,p.lon]:p.center?[p.center.lat,p.center.lon]:null;if(!xy||distance(me,xy)>r)continue;
+   const tags=p.tags||{},name=tags.name||'Địa điểm không có tên',kind=poiWeight(tags).group;
+   const color=kind==='Giao thông'?'#70baff':kind==='Ăn uống'||kind==='Lưu trú'?'#ff9a69':'#b7d7bd';
+   L.circleMarker(xy,{radius:5,color,fillColor:color,fillOpacity:.85,weight:1}).bindPopup(`<b>${escapeHtml(name)}</b><br>${escapeHtml(kind)}<br>${(distance(me,xy)/1000).toFixed(2)} km`).addTo(poiLayer);count++;
+  }
+  $('poiCount').textContent=count;analyzeZones();
+  setStatus('Đã quét '+count+' địa điểm trong '+(r/1000)+' km. Đã tính chỉ số khảo sát cho '+zones.length+' vùng lưới. Không phải dữ liệu đơn Xanh SM trực tiếp.');
+ }catch(e){setStatus('Không tải được dữ liệu: '+(e&&e.name==='AbortError'?'Quá thời gian chờ.':e.message)+' Thử lại khi mạng ổn định.');}
+ finally{$('scan').disabled=false}
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function refreshLogs(){
+ const a=logs();$('tripCount').textContent=a.reduce((s,x)=>s+Number(x.trips||0),0);
+ const waits=a.filter(x=>Number(x.wait)>=0);$('waitAvg').textContent=waits.length?Math.round(waits.reduce((s,x)=>s+Number(x.wait),0)/waits.length):'--';
+ $('logList').innerHTML=a.length?a.slice().reverse().slice(0,20).map(x=>`<div class="entry"><b>${escapeHtml(x.place||'Chưa đặt tên')}</b> • ${new Date(x.date).toLocaleString('vi-VN')}<br>${x.trips} cuốc • chờ ${x.wait} phút</div>`).join(''):'Chưa có dữ liệu.';
+}
+function saveLog(){
+ const a=logs();a.push({place:$('place').value.trim()||'Khu vực hiện tại',trips:Math.max(0,Number($('trips').value)||0),wait:Math.max(0,Number($('wait').value)||0),date:new Date().toISOString(),lat:me?.[0]??null,lon:me?.[1]??null});
+ localStorage.setItem(KEY,JSON.stringify(a));refreshLogs();$('place').value='';$('time').value=new Date().toLocaleString('vi-VN');if(pois.length)analyzeZones();setStatus(me?'Đã lưu nhật ký kèm vị trí GPS trên điện thoại.':'Đã lưu nhật ký. Chưa có GPS nên bản ghi chưa được đưa vào bản đồ nhiệt.');
+}
+function exportCSV(){
+ const a=logs();if(!a.length){setStatus('Chưa có nhật ký để xuất.');return}
+ const rows=[['Thoi gian','Khu vuc','So cuoc','Thoi gian cho phut','Latitude','Longitude'],...a.map(x=>[x.date,x.place,x.trips,x.wait,x.lat,x.lon])];
+ const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+ const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='nhat-ky-radar-xanh.csv';link.click();URL.revokeObjectURL(url);
+}
+$('locate').onclick=locate;$('scan').onclick=scan;$('radius').onchange=()=>{updateCircle();if(pois.length)analyzeZones()};$('saveLog').onclick=saveLog;$('export').onclick=exportCSV;$('rescore').onclick=analyzeZones;$('heatToggle').onclick=()=>{heatVisible=!heatVisible;if(heatVisible)heatLayer.addTo(map);else map.removeLayer(heatLayer);$('heatToggle').textContent=heatVisible?'Ẩn bản đồ nhiệt':'Hiện bản đồ nhiệt'};
+$('clear').onclick=()=>{if(confirm('Xóa toàn bộ nhật ký trên điện thoại?')){localStorage.removeItem(KEY);refreshLogs();}};
+$('time').value=new Date().toLocaleString('vi-VN');
+$('scanMode').onchange=()=>{if($('scanMode').value==='manual'&&watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}else if($('scanMode').value==='auto'&&me)locate()};
+$('theme').onchange=()=>{const t=$('theme').value;document.documentElement.style.setProperty('--green',t==='blue'?'#70baff':t==='orange'?'#ffb15c':'#65e6a2')};
+initMap();refreshLogs();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>
